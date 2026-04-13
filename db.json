@@ -1,0 +1,127 @@
+{
+  "users": [],
+  "activities": [
+    {
+      "id": "a1",
+      "texto": "Jantar leve na fogueira (hambúrguer artesanal)",
+      "diaIdx": 0,
+      "pIdx": 0
+    },
+    {
+      "id": "a2",
+      "texto": "Primeira fogueira",
+      "diaIdx": 0,
+      "pIdx": 0
+    },
+    {
+      "id": "a3",
+      "texto": "Conversa tranquila + bebida",
+      "diaIdx": 0,
+      "pIdx": 0
+    },
+    {
+      "id": "b1",
+      "texto": "Passeio em São Benedito do Sul",
+      "diaIdx": 1,
+      "pIdx": 0
+    },
+    {
+      "id": "b2",
+      "texto": "Assistir ao pôr do sol (se tiver um bom ponto)",
+      "diaIdx": 1,
+      "pIdx": 0
+    },
+    {
+      "id": "b3",
+      "texto": "Fondue",
+      "diaIdx": 1,
+      "pIdx": 1
+    },
+    {
+      "id": "b4",
+      "texto": "Bebidas + jogos (baralho, dinâmicas, etc.)",
+      "diaIdx": 1,
+      "pIdx": 1
+    },
+    {
+      "id": "b5",
+      "texto": "Fogueira + conversa",
+      "diaIdx": 1,
+      "pIdx": 1
+    },
+    {
+      "id": "c1",
+      "texto": "Acordar sem pressa",
+      "diaIdx": 2,
+      "pIdx": 0
+    },
+    {
+      "id": "c2",
+      "texto": "Café da manhã tranquilo",
+      "diaIdx": 2,
+      "pIdx": 0
+    },
+    {
+      "id": "c3",
+      "texto": "Trilha leve",
+      "diaIdx": 2,
+      "pIdx": 0
+    },
+    {
+      "id": "c4",
+      "texto": "Almoço: churrasco",
+      "diaIdx": 2,
+      "pIdx": 1
+    },
+    {
+      "id": "c5",
+      "texto": "Jantar: pizza (feita por nós) ou sushi",
+      "diaIdx": 2,
+      "pIdx": 2
+    },
+    {
+      "id": "c6",
+      "texto": "Vinho",
+      "diaIdx": 2,
+      "pIdx": 2
+    },
+    {
+      "id": "c7",
+      "texto": "Jogos + conversa",
+      "diaIdx": 2,
+      "pIdx": 2
+    },
+    {
+      "id": "d1",
+      "texto": "Visita às cachoeiras de Gravatá",
+      "diaIdx": 3,
+      "pIdx": 0
+    },
+    {
+      "id": "d2",
+      "texto": "Almoço na cidade",
+      "diaIdx": 3,
+      "pIdx": 0
+    },
+    {
+      "id": "d3",
+      "texto": "Sessão de filmes/séries + pipoca + doces (Fini, etc.)",
+      "diaIdx": 3,
+      "pIdx": 0
+    },
+    {
+      "id": "e1",
+      "texto": "Organização da casa + arrumar bagagens",
+      "diaIdx": 4,
+      "pIdx": 0
+    },
+    {
+      "id": "e2",
+      "texto": "Parada no Rei da Coxinha",
+      "diaIdx": 4,
+      "pIdx": 1
+    }
+  ],
+  "votes": [],
+  "comments": []
+}

@@ -1,14 +1,14 @@
 {
-  "name": "casa-sara",
+  "name": "travel-itinerary",
   "version": "1.0.0",
   "description": "Roteiro de viagem - Casa Sara",
   "scripts": {
-    "dev": "npx vercel dev"
   },
   "devDependencies": {
     "serve": "^14.2.4"
   },
   "dependencies": {
-    "@upstash/redis": "^1.37.0"
+    "@upstash/redis": "^1.37.0",
+    "redis": "^5.11.0"
   }
 }

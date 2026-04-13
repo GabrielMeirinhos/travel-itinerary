@@ -1,34 +1,38 @@
-const { createClient } = require('redis');
+const { Redis } = require('@upstash/redis');
+
+// Criar cliente Redis Upstash usando variáveis de ambiente (seguro)
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  if (!process.env.REDIS_URL) {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
     return res.status(400).json({
-      error: 'REDIS_URL não configurada',
-      hint: 'Configure a variável de ambiente REDIS_URL no Vercel'
+      error: 'Variáveis de ambiente Redis não configuradas',
+      required: [
+        'UPSTASH_REDIS_REST_URL',
+        'UPSTASH_REDIS_REST_TOKEN'
+      ],
+      hint: 'Configure essas variáveis no painel do Vercel (Settings > Environment Variables)'
     });
   }
 
   try {
-    // Criar cliente Redis
-    const redis = createClient({
-      url: process.env.REDIS_URL
-    });
-
-    // Conectar
-    await redis.connect();
-
     if (req.method === 'GET') {
-      // Testar leitura
-      const result = await redis.get('item');
-      
-      await redis.quit();
+      // Testar SET e GET
+      await redis.set('foo', 'bar');
+      const result = await redis.get('foo');
       
       return res.status(200).json({
         success: true,
         message: 'Conexão com Redis estabelecida',
-        item: result
+        test: {
+          set: { key: 'foo', value: 'bar' },
+          get: result
+        }
       });
     }
 
@@ -41,8 +45,6 @@ module.exports = async (req, res) => {
       // Verificar se foi salvo
       const saved = await redis.get(key);
       
-      await redis.quit();
-      
       return res.status(201).json({
         success: true,
         message: 'Dados salvos no Redis',
@@ -51,13 +53,13 @@ module.exports = async (req, res) => {
       });
     }
 
-    await redis.quit();
     return res.status(405).json({ error: 'Método não permitido' });
 
   } catch (error) {
     return res.status(500).json({
       error: 'Erro ao conectar ao Redis',
-      message: error.message
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

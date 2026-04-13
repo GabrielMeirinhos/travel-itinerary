@@ -16,11 +16,16 @@ let seedCache = null;
 let redisAvailable = null;
 let redisClient = null;
 
+function getRedisEnv() {
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  return { url, token };
+}
+
 function getRedisClient() {
   if (redisClient) return redisClient;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const { url, token } = getRedisEnv();
   if (!url || !token) return null;
 
   redisClient = new Redis({ url, token });
@@ -143,7 +148,14 @@ async function parseBody(req) {
 
 function getPathParts(req) {
   const url = new URL(req.url, 'http://localhost');
-  const cleanPath = url.pathname.replace(/^\/api\/?/, '');
+  const pathFromQuery = (url.searchParams.get('path') || '').trim();
+  if (pathFromQuery) {
+    return pathFromQuery.split('/').filter(Boolean);
+  }
+
+  const cleanPath = url.pathname
+    .replace(/^\/api\/?/, '')
+    .replace(/^index\.js\/?/, '');
   return cleanPath.split('/').filter(Boolean);
 }
 
@@ -159,10 +171,15 @@ module.exports = async (req, res) => {
   const [collection, id] = getPathParts(req);
 
   if (!collection) {
+    const redisClientReady = await isRedisAvailable();
+    const { url, token } = getRedisEnv();
+
     res.status(200).json({
       ok: true,
       message: 'API online',
-      collections: Array.from(COLLECTIONS)
+      collections: Array.from(COLLECTIONS),
+      storage: redisClientReady ? 'redis' : 'memory-fallback',
+      redisConfigured: Boolean(url && token)
     });
     return;
   }

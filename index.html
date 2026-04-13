@@ -386,6 +386,12 @@
       animation: fadeUp 0.4s ease backwards;
     }
 
+    .activity-card.dragging {
+      opacity: 0.55;
+      transform: scale(0.98);
+      border-style: dashed;
+    }
+
     .activity-card:hover {
       box-shadow: var(--shadow-md);
       border-color: var(--border-hover);
@@ -474,6 +480,24 @@
       color: var(--accent);
     }
 
+    .btn-danger {
+      border: 1px solid rgba(193, 68, 14, 0.35);
+      background: var(--danger-bg);
+      color: var(--danger);
+      border-radius: var(--r-pill);
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-danger:hover {
+      background: rgba(193, 68, 14, 0.18);
+      transform: translateY(-1px);
+    }
+
     .vote-audit {
       margin-top: 12px;
       padding: 10px 12px;
@@ -552,6 +576,10 @@
       line-height: 1.5;
       border-left: 3px solid var(--accent);
       transition: background 0.2s;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
     }
 
     .comment-item:hover {
@@ -564,6 +592,33 @@
       color: var(--accent);
       font-size: 12px;
       text-transform: capitalize;
+    }
+
+    .comment-body {
+      flex: 1;
+    }
+
+    .comment-delete {
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid rgba(193, 68, 14, 0.28);
+      border-radius: var(--r-pill);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .comment-delete:hover {
+      background: var(--danger-bg);
+    }
+
+    .period-section.drop-target {
+      outline: 2px dashed var(--accent);
+      outline-offset: 6px;
+      border-radius: var(--r-md);
+      background: rgba(45, 106, 79, 0.04);
     }
 
     .empty-comments {
@@ -891,7 +946,8 @@
       currentUser: null,
       ui: {
         addingTo: null,     // 'diaIdx_pIdx'
-        showComments: {}    // boolean map keyed by activity id
+        showComments: {},   // boolean map keyed by activity id
+        draggingActivityId: null
       }
     };
 
@@ -1093,6 +1149,106 @@
       if (c) c.id = saved.id;
     }
 
+    async function deleteComment(commentId) {
+      const previousComments = [...state.comments];
+      state.comments = state.comments.filter(c => c.id !== commentId);
+      render();
+
+      try {
+        await fetch(`${API_URL}/comments/${commentId}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error(e);
+        state.comments = previousComments;
+        render();
+      }
+    }
+
+    async function deleteActivity(activityId) {
+      const confirmed = window.confirm('Deseja excluir este card e todos os votos/comentarios dele?');
+      if (!confirmed) return;
+
+      const previousActivities = [...state.activities];
+      const previousVotes = [...state.votes];
+      const previousComments = [...state.comments];
+
+      const votesToDelete = state.votes.filter(v => v.activityId === activityId);
+      const commentsToDelete = state.comments.filter(c => c.activityId === activityId);
+
+      state.activities = state.activities.filter(a => a.id !== activityId);
+      state.votes = state.votes.filter(v => v.activityId !== activityId);
+      state.comments = state.comments.filter(c => c.activityId !== activityId);
+      delete state.ui.showComments[activityId];
+      render();
+
+      try {
+        await Promise.all([
+          ...votesToDelete.map(v => fetch(`${API_URL}/votes/${v.id}`, { method: 'DELETE' })),
+          ...commentsToDelete.map(c => fetch(`${API_URL}/comments/${c.id}`, { method: 'DELETE' }))
+        ]);
+
+        await fetch(`${API_URL}/activities/${activityId}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error(e);
+        state.activities = previousActivities;
+        state.votes = previousVotes;
+        state.comments = previousComments;
+        render();
+      }
+    }
+
+    function onActivityDragStart(event, activityId) {
+      state.ui.draggingActivityId = activityId;
+      event.dataTransfer.setData('text/plain', activityId);
+      event.dataTransfer.effectAllowed = 'move';
+      event.currentTarget.classList.add('dragging');
+    }
+
+    function onActivityDragEnd(event) {
+      state.ui.draggingActivityId = null;
+      event.currentTarget.classList.remove('dragging');
+      document.querySelectorAll('.period-section.drop-target').forEach(el => el.classList.remove('drop-target'));
+    }
+
+    function onPeriodDragOver(event) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      event.currentTarget.classList.add('drop-target');
+    }
+
+    function onPeriodDragLeave(event) {
+      event.currentTarget.classList.remove('drop-target');
+    }
+
+    async function onPeriodDrop(event, diaIdx, pIdx) {
+      event.preventDefault();
+      event.currentTarget.classList.remove('drop-target');
+
+      const activityId = event.dataTransfer.getData('text/plain') || state.ui.draggingActivityId;
+      if (!activityId) return;
+
+      const activity = state.activities.find(a => a.id === activityId);
+      if (!activity) return;
+      if (activity.diaIdx === diaIdx && activity.pIdx === pIdx) return;
+
+      const previousPos = { diaIdx: activity.diaIdx, pIdx: activity.pIdx };
+      activity.diaIdx = diaIdx;
+      activity.pIdx = pIdx;
+      render();
+
+      try {
+        await fetch(`${API_URL}/activities/${activityId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ diaIdx, pIdx })
+        });
+      } catch (e) {
+        console.error(e);
+        activity.diaIdx = previousPos.diaIdx;
+        activity.pIdx = previousPos.pIdx;
+        render();
+      }
+    }
+
     function showAddForm(key) {
       state.ui.addingTo = key;
       render();
@@ -1166,7 +1322,8 @@
           ${actComments.length === 0 ? '<div class="empty-comments">Nenhum comentário ainda. Seja o primeiro!</div>' : ''}
           ${actComments.map(c => `
             <div class="comment-item">
-              <span class="comment-author">${c.userName || 'Visitante'}:</span> ${c.texto}
+              <div class="comment-body"><span class="comment-author">${c.userName || 'Visitante'}:</span> ${c.texto}</div>
+              <button class="comment-delete" onclick="deleteComment('${c.id}')">Excluir</button>
             </div>
           `).join('')}
           <div class="add-comment">
@@ -1179,7 +1336,7 @@
       }
 
       return `
-      <div class="activity-card" style="animation-delay: 50ms;">
+      <div class="activity-card" style="animation-delay: 50ms;" draggable="true" ondragstart="onActivityDragStart(event, '${act.id}')" ondragend="onActivityDragEnd(event)">
         <div class="activity-text">${act.texto}</div>
         <div class="action-bar">
           <button class="vote-btn ${userVote === 'up' ? 'active-up' : ''}" onclick="vote('${act.id}', 'up')">
@@ -1188,6 +1345,7 @@
           <button class="vote-btn ${userVote === 'down' ? 'active-down' : ''}" onclick="vote('${act.id}', 'down')">
             <span class="btn-icon">✕</span> ${downVotes}
           </button>
+          <button class="btn-danger" onclick="deleteActivity('${act.id}')">Excluir card</button>
           <button class="toggle-comments" onclick="toggleComments('${act.id}')">
             ${showC ? 'Ocultar' : `Comentários (${actComments.length})`}
           </button>
@@ -1218,7 +1376,7 @@
 
         diaInfo.periodos.forEach((p, pIdx) => {
           const key = `${diaIdx}_${pIdx}`;
-          html += `<div class="period-section">`;
+          html += `<div class="period-section" ondragover="onPeriodDragOver(event)" ondragleave="onPeriodDragLeave(event)" ondrop="onPeriodDrop(event, ${diaIdx}, ${pIdx})">`;
           html += `<div class="period-label">${p.nome}</div>`;
           if (p.objetivo) {
             html += `<div class="objetivo-badge">Objetivo: ${p.objetivo}</div>`;

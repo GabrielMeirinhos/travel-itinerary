@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "Roteiro de viagem - Casa Sara",
   "scripts": {
-    "dev": "concurrently --names \"API,FRONT\" --prefix-colors \"cyan,magenta\" \"json-server --watch db.json -p 3000\" \"npx serve . -l 8080\""
+    "dev": "npx vercel dev"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "json-server": "^0.17.4",
     "serve": "^14.2.4"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.37.0"
   }
 }

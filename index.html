@@ -474,6 +474,66 @@
       color: var(--accent);
     }
 
+    .vote-audit {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      background: var(--bg-input);
+    }
+
+    .vote-audit-title {
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .vote-audit-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .vote-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: var(--r-pill);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+    }
+
+    .vote-chip-up {
+      border-color: rgba(64, 145, 108, 0.3);
+      color: var(--success);
+      background: var(--success-bg);
+    }
+
+    .vote-chip-down {
+      border-color: rgba(193, 68, 14, 0.3);
+      color: var(--danger);
+      background: var(--danger-bg);
+    }
+
+    .vote-chip-you {
+      box-shadow: 0 0 0 2px var(--accent-glow);
+      border-color: var(--accent);
+    }
+
+    .vote-empty {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+
     /* ── Comments ── */
     .comments-section {
       margin-top: 16px;
@@ -814,13 +874,10 @@
 
   <script>
     // =========================================================
-    // API CONFIGURATION (json-server)
-    // Certifique-se de que o json-server está rodando na porta 3000:
-    // npx json-server db.json -p 3000
+    // API CONFIGURATION (Vercel Serverless)
+    // Em desenvolvimento local, rode: npm run dev
     // =========================================================
-    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-      ? 'http://localhost:3000' 
-      : '/api';
+    const API_URL = '/api';
 
     // =========================================================
     // STATE MANAGEMENT
@@ -903,12 +960,13 @@
           render();
         }
       } catch (e) {
-        console.error("Erro ao conectar no db.json. Verifique se o json-server está rodando.", e);
+        console.error('Erro ao conectar na API serverless.', e);
         document.getElementById('app').innerHTML = `
         <div class="loading-state" style="color:var(--danger-color)">
           <strong>Erro de conexão!</strong><br/>
-          O servidor backend (json-server) não foi encontrado em ${API_URL}.<br/>
-          Lembre-se de rodar: <code>npx json-server db.json -p 3000</code>
+          A API não respondeu em ${API_URL}.<br/>
+          Em desenvolvimento local rode: <code>npm run dev</code><br/>
+          Em produção, configure as variáveis <code>UPSTASH_REDIS_REST_URL</code> e <code>UPSTASH_REDIS_REST_TOKEN</code> na Vercel.
         </div>
       `;
       }
@@ -1087,6 +1145,17 @@
         userVote = actVotes.find(v => v.userId === state.currentUser.id)?.tipo;
       }
 
+      const votersHTML = actVotes.length
+        ? actVotes.map(v => {
+            const voteClass = v.tipo === 'up' ? 'vote-chip-up' : 'vote-chip-down';
+            const isCurrentUser = state.currentUser && v.userId === state.currentUser.id;
+            const youClass = isCurrentUser ? 'vote-chip-you' : '';
+            const voteLabel = v.tipo === 'up' ? '✓' : '✕';
+            const who = v.userName || 'Visitante';
+            return `<span class="vote-chip ${voteClass} ${youClass}" title="${who} votou ${v.tipo === 'up' ? 'a favor' : 'contra'}">${who} ${voteLabel}</span>`;
+          }).join('')
+        : '<span class="vote-empty">Ninguem votou ainda.</span>';
+
       const actComments = state.comments.filter(c => c.activityId === act.id);
       const showC = state.ui.showComments[act.id];
 
@@ -1122,6 +1191,10 @@
           <button class="toggle-comments" onclick="toggleComments('${act.id}')">
             ${showC ? 'Ocultar' : `Comentários (${actComments.length})`}
           </button>
+        </div>
+        <div class="vote-audit">
+          <div class="vote-audit-title">Quem ja votou</div>
+          <div class="vote-audit-list">${votersHTML}</div>
         </div>
         ${commentsHTML}
       </div>

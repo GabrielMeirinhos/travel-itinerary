@@ -1,2 +1,10 @@
 node_modules/
 package-lock.json
+
+# Variaveis de ambiente locais
+.env
+.env.local
+.env.*.local
+
+# Arquivos locais da Vercel
+.vercel/

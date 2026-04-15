@@ -2,13 +2,13 @@
   "name": "travel-itinerary",
   "version": "1.0.0",
   "description": "Roteiro de viagem - Casa Sara",
-  "scripts": {
-  },
+  "scripts": {},
   "devDependencies": {
     "serve": "^14.2.4"
   },
   "dependencies": {
     "@upstash/redis": "^1.37.0",
+    "mongodb": "^6.21.0",
     "redis": "^5.11.0"
   }
 }

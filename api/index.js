@@ -1,40 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { Redis } = require('@upstash/redis');
+const { MongoClient } = require('mongodb');
 
 const COLLECTIONS = new Set(['users', 'activities', 'votes', 'comments']);
-const KEY_PREFIX = process.env.KV_KEY_PREFIX || 'travel-itinerary';
-const memoryStore = {
-  users: [],
-  activities: [],
-  votes: [],
-  comments: []
-};
+const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'travel-itinerary';
 
 let seedCache = null;
-let redisAvailable = null;
-let redisClient = null;
-
-function getRedisEnv() {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  return { url, token };
-}
-
-function getRedisClient() {
-  if (redisClient) return redisClient;
-
-  const { url, token } = getRedisEnv();
-  if (!url || !token) return null;
-
-  redisClient = new Redis({ url, token });
-  return redisClient;
-}
-
-function getCollectionKey(collection) {
-  return `${KEY_PREFIX}:${collection}`;
-}
+let mongoClientPromise = null;
+let seedInitialized = false;
 
 function readSeed() {
   if (seedCache) return seedCache;
@@ -49,66 +24,48 @@ function readSeed() {
       votes: Array.isArray(parsed.votes) ? parsed.votes : [],
       comments: Array.isArray(parsed.comments) ? parsed.comments : []
     };
-  } catch (error) {
-    seedCache = { ...memoryStore };
+  } catch {
+    seedCache = {
+      users: [],
+      activities: [],
+      votes: [],
+      comments: []
+    };
   }
 
   return seedCache;
 }
 
-async function isRedisAvailable() {
-  if (redisAvailable !== null) return redisAvailable;
-
-  const client = getRedisClient();
-  if (!client) {
-    redisAvailable = false;
-    return redisAvailable;
+function getMongoClientPromise() {
+  if (!MONGODB_URI) return null;
+  if (!mongoClientPromise) {
+    const client = new MongoClient(MONGODB_URI);
+    mongoClientPromise = client.connect();
   }
-
-  try {
-    await client.ping();
-    redisAvailable = true;
-  } catch (error) {
-    redisAvailable = false;
-  }
-
-  return redisAvailable;
+  return mongoClientPromise;
 }
 
-async function getCollection(collection) {
+async function getDb() {
+  const clientPromise = getMongoClientPromise();
+  if (!clientPromise) return null;
+  const client = await clientPromise;
+  return client.db(MONGODB_DB_NAME);
+}
+
+async function ensureSeedData(db) {
+  if (seedInitialized) return;
+
   const seed = readSeed();
-  const canUseRedis = await isRedisAvailable();
+  for (const collectionName of COLLECTIONS) {
+    const collection = db.collection(collectionName);
+    const count = await collection.countDocuments();
 
-  if (!canUseRedis) {
-    if (memoryStore[collection].length === 0) {
-      memoryStore[collection] = [...seed[collection]];
+    if (count === 0 && seed[collectionName].length > 0) {
+      await collection.insertMany(seed[collectionName]);
     }
-    return memoryStore[collection];
   }
 
-  const client = getRedisClient();
-  const key = getCollectionKey(collection);
-  const stored = await client.get(key);
-
-  if (Array.isArray(stored)) {
-    return stored;
-  }
-
-  const initial = [...seed[collection]];
-  await client.set(key, initial);
-  return initial;
-}
-
-async function setCollection(collection, value) {
-  const canUseRedis = await isRedisAvailable();
-
-  if (!canUseRedis) {
-    memoryStore[collection] = value;
-    return;
-  }
-
-  const client = getRedisClient();
-  await client.set(getCollectionKey(collection), value);
+  seedInitialized = true;
 }
 
 async function parseBody(req) {
@@ -168,18 +125,28 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const db = await getDb();
+  if (!db) {
+    res.status(500).json({
+      error: 'MongoDB nao configurado.',
+      required: ['MONGODB_URI'],
+      optional: ['MONGODB_DB_NAME']
+    });
+    return;
+  }
+
+  await ensureSeedData(db);
+
   const [collection, id] = getPathParts(req);
 
   if (!collection) {
-    const redisClientReady = await isRedisAvailable();
-    const { url, token } = getRedisEnv();
-
     res.status(200).json({
       ok: true,
       message: 'API online',
       collections: Array.from(COLLECTIONS),
-      storage: redisClientReady ? 'redis' : 'memory-fallback',
-      redisConfigured: Boolean(url && token)
+      storage: 'mongodb',
+      mongoConfigured: Boolean(MONGODB_URI),
+      dbName: MONGODB_DB_NAME
     });
     return;
   }
@@ -189,15 +156,16 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const items = await getCollection(collection);
+  const collectionRef = db.collection(collection);
 
   if (req.method === 'GET') {
     if (!id) {
+      const items = await collectionRef.find({}, { projection: { _id: 0 } }).toArray();
       res.status(200).json(items);
       return;
     }
 
-    const found = items.find((item) => String(item.id) === String(id));
+    const found = await collectionRef.findOne({ id: String(id) }, { projection: { _id: 0 } });
     if (!found) {
       res.status(404).json({ error: 'Registro nao encontrado.' });
       return;
@@ -211,8 +179,7 @@ module.exports = async (req, res) => {
     const body = await parseBody(req);
     const item = { ...body, id: body.id || crypto.randomUUID() };
 
-    items.push(item);
-    await setCollection(collection, items);
+    await collectionRef.insertOne(item);
     res.status(201).json(item);
     return;
   }
@@ -224,16 +191,15 @@ module.exports = async (req, res) => {
     }
 
     const body = await parseBody(req);
-    const index = items.findIndex((item) => String(item.id) === String(id));
-
-    if (index === -1) {
+    const existing = await collectionRef.findOne({ id: String(id) }, { projection: { _id: 0 } });
+    if (!existing) {
       res.status(404).json({ error: 'Registro nao encontrado.' });
       return;
     }
 
-    items[index] = { ...items[index], ...body, id: items[index].id };
-    await setCollection(collection, items);
-    res.status(200).json(items[index]);
+    const updatedItem = { ...existing, ...body, id: existing.id };
+    await collectionRef.updateOne({ id: String(id) }, { $set: updatedItem });
+    res.status(200).json(updatedItem);
     return;
   }
 
@@ -243,13 +209,12 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const nextItems = items.filter((item) => String(item.id) !== String(id));
-    if (nextItems.length === items.length) {
+    const result = await collectionRef.deleteOne({ id: String(id) });
+    if (!result.deletedCount) {
       res.status(404).json({ error: 'Registro nao encontrado.' });
       return;
     }
 
-    await setCollection(collection, nextItems);
     res.status(204).end();
     return;
   }
